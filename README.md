@@ -1,5 +1,7 @@
 # X Realtime Monitor
 
+[![CI](https://github.com/jeffliu05042/x-realtime-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/jeffliu05042/x-realtime-monitor/actions/workflows/ci.yml)
+
 一个免费、本地运行的 X（原 Twitter）账号监控器。它使用电脑上已经安装的 Chrome、Edge 或 Firefox 和一个独立登录目录，按顺序检查 1–10 个公开账号，并将新增帖子写入 JSONL 和 JSON 文件。
 
 它不需要 X API key，也不会调用付费模型。代价是：这是一种非官方浏览器自动化方案，受 X 页面结构、风控及服务条款变化影响，不能承诺持续可用或秒级实时。
@@ -17,10 +19,12 @@
 
 ## 环境要求
 
-- macOS 或 Windows
-- Node.js 20 或更高版本
+- macOS，或 64 位 Windows 10/11
+- Node.js 22.12.0 或更高版本
 - 已安装 Chrome、Edge 或 Firefox。建议优先使用 Chrome 或 Edge
 - 一个可以正常访问并登录 X 的网络环境
+
+项目会在 GitHub Actions 的 macOS 和 Windows 环境中执行完整的 lint、类型检查和测试。浏览器登录与 X 页面访问依赖本机网络和账号状态，仍需在实际电脑上完成首次登录验证。
 
 ## 安装
 
@@ -76,7 +80,7 @@ node bin/x-monitor.js check --config config.json
 node bin/x-monitor.js run --config config.json
 ```
 
-按 `Ctrl+C` 可安全停止。若希望开机运行，可在 macOS 的 `launchd` 或 Windows“任务计划程序”中执行上面的 `run` 命令；电脑必须保持开机、联网，并且专用 X 会话仍然有效。
+按 `Ctrl+C` 可安全停止。若希望开机运行，可在 macOS 的 `launchd` 或 Windows“任务计划程序”中执行上面的 `run` 命令；电脑必须保持开机、联网，并且专用 X 会话仍然有效。Windows“任务计划程序”强制结束进程时可能没有机会完成优雅退出，但已写入的 JSON 数据不会因此被清空。
 
 也可以执行 `npm link`，之后把 `node bin/x-monitor.js` 简写成 `x-monitor`。
 
@@ -109,6 +113,8 @@ node bin/x-monitor.js run --config config.json
 - 所有相对路径都以 `config.json` 所在目录为基准。
 
 不要让普通 Chrome/Edge 与本程序同时使用同一个浏览器资料目录。默认配置使用独立目录，不会触碰日常浏览器配置。
+
+Windows 自动识别 Chrome、Edge 和 Firefox 的默认安装路径；若浏览器安装在自定义位置，请在 `browser.executablePath` 中填写完整路径，例如 `C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe`。
 
 ## 本地数据接口
 
