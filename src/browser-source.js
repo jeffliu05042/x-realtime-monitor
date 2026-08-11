@@ -132,17 +132,33 @@ function extractTimeline(expectedAccount) {
     }
   };
 
-  const posts = [...document.querySelectorAll('article[data-testid="tweet"]')].map((article) => {
+  /** @param {string} id */
+  const timestampFromId = (id) => {
+    try {
+      const milliseconds = Number((BigInt(id) >> 22n) + 1_288_834_974_657n);
+      const timestamp = new Date(milliseconds);
+      return Number.isFinite(timestamp.getTime()) ? timestamp.toISOString() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const posts = [...document.querySelectorAll("article")].map((article) => {
     /** @param {Element | null | undefined} node */
     const isOuter = (node) => Boolean(
-      node && node.closest?.('article[data-testid="tweet"]') === article && !node.closest?.('[data-testid="quoteTweet"]'),
+      node && node.closest?.("article") === article && !node.closest?.('[data-testid="quoteTweet"]'),
     );
     const time = [...article.querySelectorAll("time")].find((candidate) => (
       isOuter(candidate) && parsePermalink(candidate.closest("a"))
     ));
-    const permalink = parsePermalink(time?.closest("a"));
+    const fallbackPermalink = [...article.querySelectorAll('a[href*="/status/"]')]
+      .map((anchor) => parsePermalink(anchor))
+      .find((candidate) => candidate !== null);
+    const permalink = parsePermalink(time?.closest("a")) ?? fallbackPermalink;
     if (!permalink || permalink.author !== expectedAccount.toLowerCase()) return null;
-    const textNode = [...article.querySelectorAll('[data-testid="tweetText"]')].find(isOuter);
+    const textNode = [...article.querySelectorAll('[data-testid="tweetText"]')].find(isOuter)
+      ?? [...article.querySelectorAll('[class*="whitespace-pre-wrap"]')]
+        .find((candidate) => isOuter(candidate) && candidate.textContent?.trim());
     const socialContext = [...article.querySelectorAll('[data-testid="socialContext"]')]
       .filter(isOuter)
       .map((node) => node.textContent ?? "")
@@ -157,18 +173,29 @@ function extractTimeline(expectedAccount) {
           .join(" "),
       ));
     /** @param {string} testId */
-    const metric = (testId) => article.querySelector(`[data-testid="${testId}"] span span`)?.textContent ?? "0";
+    const metric = (testId) => {
+      const legacy = article.querySelector(`[data-testid="${testId}"] span span`)?.textContent;
+      if (legacy) return legacy;
+      const label = testId === "retweet" ? /^(repost|retweet)$/i
+        : testId === "reply" ? /^reply$/i
+          : testId === "like" ? /^like$/i
+            : /^view count$/i;
+      const button = [...article.querySelectorAll("button")].find((candidate) => (
+        label.test(candidate.getAttribute("aria-label") ?? "")
+      ));
+      return button?.textContent ?? "0";
+    };
     return {
       id: permalink.id,
       author: permalink.author,
       text: textNode?.textContent ?? "",
       displayedAsTranslated,
-      timestamp: time?.getAttribute("datetime") ?? null,
+      timestamp: time?.getAttribute("datetime") ?? timestampFromId(permalink.id),
       url: permalink.url,
       replies: metric("reply"),
       reposts: metric("retweet"),
       likes: metric("like"),
-      views: article.querySelector('a[href*="/analytics"] span span')?.textContent ?? "0",
+      views: article.querySelector('a[href*="/analytics"] span span')?.textContent ?? metric("view"),
       isReply: replyContext,
       isRepost: /reposted|retweeted|转发了|轉發了|リポスト/i.test(socialContext),
     };
@@ -269,7 +296,7 @@ export class BrowserFeedSource {
       });
       try {
         await page.waitForSelector(
-          'article[data-testid="tweet"], [data-testid="emptyState"], input[autocomplete="username"], [data-testid="loginButton"], [data-testid="ocfEnterTextTextInput"], iframe[src*="arkoselabs"], #arkoseFrame',
+          'article, [data-testid="emptyState"], input[autocomplete="username"], [data-testid="loginButton"], [data-testid="ocfEnterTextTextInput"], iframe[src*="arkoselabs"], #arkoseFrame',
           { timeout: this.options.navigationTimeoutMs },
         );
       } catch (error) {

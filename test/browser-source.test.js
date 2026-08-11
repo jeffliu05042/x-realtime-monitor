@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { parseHTML } from "linkedom";
 
 import { BrowserFeedSource } from "../src/browser-source.js";
 
@@ -256,4 +257,76 @@ test("an automatically translated page is replaced with the original GraphQL pos
   await source.close();
 
   assert.equal(result.posts[0].text, "The original market update.");
+});
+
+test("a new public-profile article without data-testid is collected through the browser source", async () => {
+  const postId = "2086900421432397910";
+  const fixture = `<!doctype html><html><body>
+    <ul><li><div role="link"><article class="flex flex-col gap-1">
+      <div><a href="/alpha"></a><a href="https://x.com/alpha">Market Analyst</a>
+        <a href="https://x.com/alpha">@alpha</a>
+        <a href="/alpha/status/${postId}">12h</a>
+      </div>
+      <div class="flex flex-col gap-0.5">
+        <div class="font-chirp max-w-full whitespace-pre-wrap break-words text-text text-body font-normal">
+          <span>Copper inventories fell.</span>
+        </div>
+      </div>
+      <div>
+        <button aria-label="Reply"><span>95</span></button>
+        <button aria-label="Repost"><span>71</span></button>
+        <button aria-label="Like"><span>5784</span></button>
+        <button aria-label="View count"><span>16万</span></button>
+      </div>
+    </article></div></li></ul>
+  </body></html>`;
+  const page = {
+    on() {},
+    off() {},
+    async goto() {},
+    async waitForSelector() {},
+    async evaluate(extract, account) {
+      const { document } = parseHTML(fixture);
+      Reflect.set(globalThis, "document", document);
+      Reflect.set(globalThis, "window", { location: { pathname: `/${account}` } });
+      try {
+        return extract(account);
+      } finally {
+        Reflect.deleteProperty(globalThis, "document");
+        Reflect.deleteProperty(globalThis, "window");
+      }
+    },
+    async close() {},
+  };
+  const source = new BrowserFeedSource(
+    {
+      type: "chrome",
+      executablePath: "/browser/chrome",
+      profileDirectory: join(tmpdir(), "x-monitor-public-profile-test"),
+      fetchLimitPerAccount: 10,
+      includeReplies: false,
+      navigationTimeoutMs: 30_000,
+    },
+    {
+      launch: async () => ({ newPage: async () => page, close: async () => {} }),
+    },
+  );
+
+  await source.start({ headless: true });
+  const result = await source.fetchAccounts(["alpha"]);
+  await source.close();
+
+  assert.deepEqual(result, {
+    errors: [],
+    posts: [{
+      id: postId,
+      author: "alpha",
+      text: "Copper inventories fell.",
+      createdAt: "2026-08-10T19:40:07.861Z",
+      url: `https://x.com/alpha/status/${postId}`,
+      metrics: { replies: 95, reposts: 71, likes: 5784, views: 160_000 },
+      isReply: false,
+      isRepost: false,
+    }],
+  });
 });
