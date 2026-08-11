@@ -1,0 +1,19 @@
+{
+  "accounts": [
+    "OpenAI"
+  ],
+  "pollIntervalSeconds": 120,
+  "fetchLimitPerAccount": 10,
+  "includeReplies": false,
+  "lookbackMinutes": 30,
+  "browser": {
+    "type": "auto",
+    "executablePath": null,
+    "profileDirectory": "data/browser-profile"
+  },
+  "output": {
+    "directory": "data",
+    "latestLimit": 200
+  },
+  "browserAutomationRiskAccepted": false
+}
