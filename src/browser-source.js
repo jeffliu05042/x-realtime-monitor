@@ -158,7 +158,13 @@ function extractTimeline(expectedAccount) {
     if (!permalink || permalink.author !== expectedAccount.toLowerCase()) return null;
     const textNode = [...article.querySelectorAll('[data-testid="tweetText"]')].find(isOuter)
       ?? [...article.querySelectorAll('[class*="whitespace-pre-wrap"]')]
-        .find((candidate) => isOuter(candidate) && candidate.textContent?.trim());
+        .find((candidate) => (
+          isOuter(candidate)
+          && candidate.tagName === "DIV"
+          && candidate.classList.contains("text-body")
+          && candidate.classList.contains("font-normal")
+          && candidate.textContent?.trim()
+        ));
     const socialContext = [...article.querySelectorAll('[data-testid="socialContext"]')]
       .filter(isOuter)
       .map((node) => node.textContent ?? "")
@@ -180,10 +186,17 @@ function extractTimeline(expectedAccount) {
         : testId === "reply" ? /^reply$/i
           : testId === "like" ? /^like$/i
             : /^view count$/i;
-      const button = [...article.querySelectorAll("button")].find((candidate) => (
+      const buttons = [...article.querySelectorAll("button")];
+      const buttonIndex = buttons.findIndex((candidate) => (
         label.test(candidate.getAttribute("aria-label") ?? "")
       ));
-      return button?.textContent ?? "0";
+      if (buttonIndex < 0) return "0";
+      const buttonText = buttons[buttonIndex].textContent?.trim();
+      if (buttonText) return buttonText;
+      const countButton = buttons[buttonIndex + 1];
+      return countButton && !countButton.getAttribute("aria-label")
+        ? countButton.textContent ?? "0"
+        : "0";
     };
     return {
       id: permalink.id,

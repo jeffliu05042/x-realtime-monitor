@@ -263,7 +263,7 @@ test("a new public-profile article without data-testid is collected through the 
   const postId = "2086900421432397910";
   const fixture = `<!doctype html><html><body>
     <ul><li><div role="link"><article class="flex flex-col gap-1">
-      <div><a href="/alpha"></a><a href="https://x.com/alpha">Market Analyst</a>
+      <div><a href="/alpha"></a><a class="font-chirp whitespace-pre-wrap text-body font-bold" href="https://x.com/alpha">Market Analyst</a>
         <a href="https://x.com/alpha">@alpha</a>
         <a href="/alpha/status/${postId}">12h</a>
       </div>
@@ -273,10 +273,10 @@ test("a new public-profile article without data-testid is collected through the 
         </div>
       </div>
       <div>
-        <button aria-label="Reply"><span>95</span></button>
-        <button aria-label="Repost"><span>71</span></button>
-        <button aria-label="Like"><span>5784</span></button>
-        <button aria-label="View count"><span>16万</span></button>
+        <button aria-label="Reply"></button><button><span>95</span></button>
+        <button aria-label="Repost"></button><button><span>71</span></button>
+        <button aria-label="Like"></button><button><span>5784</span></button>
+        <button aria-label="View count"></button><button><span>16万</span></button>
       </div>
     </article></div></li></ul>
   </body></html>`;
