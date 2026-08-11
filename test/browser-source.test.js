@@ -151,6 +151,46 @@ test("account verification stops the whole check before another account is opene
   assert.deepEqual(visited, ["https://x.com/alpha"]);
 });
 
+test("a challenge page discovered after a selector timeout stops monitoring", async () => {
+  const visited = [];
+  const page = {
+    on() {},
+    off() {},
+    async goto(url) {
+      visited.push(url);
+    },
+    async waitForSelector() {
+      throw new Error("selector timed out");
+    },
+    async evaluate() {
+      return { authRequired: false, challengeRequired: true, posts: [] };
+    },
+    async close() {},
+  };
+  const source = new BrowserFeedSource(
+    {
+      type: "chrome",
+      executablePath: "/browser/chrome",
+      profileDirectory: join(tmpdir(), "x-monitor-timeout-challenge-test"),
+      fetchLimitPerAccount: 10,
+      includeReplies: false,
+      navigationTimeoutMs: 30_000,
+    },
+    {
+      launch: async () => ({ newPage: async () => page, close: async () => {} }),
+    },
+  );
+
+  await source.start({ headless: true });
+  await assert.rejects(
+    source.fetchAccounts(["alpha", "beta"]),
+    (error) => error?.code === "X_CHALLENGE_REQUIRED",
+  );
+  await source.close();
+
+  assert.deepEqual(visited, ["https://x.com/alpha"]);
+});
+
 test("an automatically translated page is replaced with the original GraphQL post text", async () => {
   let responseListener;
   const page = {

@@ -32,6 +32,35 @@ async function readJson(path, fallback) {
   }
 }
 
+/** @param {string} path @returns {Promise<Record<string, unknown>[]>} */
+async function readJsonLines(path) {
+  let content;
+  try {
+    content = await readFile(path, "utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  return content
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line, index) => {
+      const value = JSON.parse(line);
+      if (!value || typeof value !== "object" || Array.isArray(value) || !("id" in value)) {
+        throw new Error(`invalid JSONL record at line ${index + 1}`);
+      }
+      return /** @type {Record<string, unknown>} */ (value);
+    });
+}
+
+/** @param {Record<string, unknown>} record */
+function recordTimestamp(record) {
+  const created = Date.parse(String(record.created_at ?? ""));
+  if (Number.isFinite(created)) return created;
+  const captured = Date.parse(String(record.captured_at ?? ""));
+  return Number.isFinite(captured) ? captured : 0;
+}
+
 export class FeedStore {
   /** @param {{directory: string, latestLimit: number}} options */
   constructor({ directory, latestLimit }) {
@@ -47,11 +76,14 @@ export class FeedStore {
   async initialize() {
     if (this.seenIds) return;
     await mkdir(this.directory, { recursive: true });
-    const state = await readJson(this.statePath, { seen_ids: [] });
-    const ids = state && typeof state === "object" && "seen_ids" in state && Array.isArray(state.seen_ids)
-      ? state.seen_ids.map(String)
-      : [];
+    const records = await readJsonLines(this.jsonlPath);
+    const ids = records.map((record) => String(record.id)).slice(-20_000);
     this.seenIds = new Set(ids);
+    const latest = [...records]
+      .sort((left, right) => recordTimestamp(right) - recordTimestamp(left))
+      .slice(0, this.latestLimit);
+    await writeJsonAtomic(this.latestPath, latest);
+    await writeJsonAtomic(this.statePath, { seen_ids: ids });
   }
 
   /**

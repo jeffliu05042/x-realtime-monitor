@@ -26,7 +26,9 @@ export class MonitorService {
     const recentPosts = result.posts.filter((post) => {
       const timestamp = Date.parse(post.createdAt ?? "");
       return Number.isFinite(timestamp) && timestamp >= earliest && timestamp <= latest;
-    });
+    }).sort((left, right) => (
+      Date.parse(right.createdAt ?? "") - Date.parse(left.createdAt ?? "")
+    ));
     const stored = await this.store.save(recentPosts, { capturedAt: capturedAt.toISOString() });
     return {
       fetched: result.posts.length,

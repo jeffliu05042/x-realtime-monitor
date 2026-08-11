@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkdtemp } from "node:fs/promises";
@@ -67,4 +67,21 @@ test("latest.json preserves the newest-first order returned by X", async () => {
 
   const latest = JSON.parse(await readFile(join(directory, "latest.json"), "utf8"));
   assert.deepEqual(latest.map((item) => item.id), [post.id, older.id]);
+});
+
+test("startup recovers dedupe state and latest snapshot from the JSONL event log", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "x-monitor-feed-"));
+  const firstStore = new FeedStore({ directory, latestLimit: 20 });
+  await firstStore.save([post], { capturedAt: "2026-08-11T01:32:00.000Z" });
+  await writeFile(join(directory, "state.json"), "{\"seen_ids\":[]}\n", "utf8");
+  await writeFile(join(directory, "latest.json"), "[]\n", "utf8");
+
+  const recoveredStore = new FeedStore({ directory, latestLimit: 20 });
+  const result = await recoveredStore.save([post], { capturedAt: "2026-08-11T01:33:00.000Z" });
+
+  assert.deepEqual(result, { saved: 0, duplicates: 1 });
+  const lines = (await readFile(join(directory, "posts.jsonl"), "utf8")).trim().split("\n");
+  assert.equal(lines.length, 1);
+  const latest = JSON.parse(await readFile(join(directory, "latest.json"), "utf8"));
+  assert.equal(latest[0].id, post.id);
 });

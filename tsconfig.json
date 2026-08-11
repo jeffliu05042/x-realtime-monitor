@@ -13,4 +13,3 @@
   "include": ["bin/**/*.js", "src/**/*.js"],
   "exclude": ["node_modules", "data"]
 }
-

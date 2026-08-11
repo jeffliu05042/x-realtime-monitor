@@ -97,13 +97,21 @@ function observeOriginalPostTexts(page) {
  * @param {string} expectedAccount
  */
 function extractTimeline(expectedAccount) {
+  const path = window.location.pathname.toLowerCase();
   const authRequired = Boolean(
     document.querySelector('input[autocomplete="username"], [data-testid="loginButton"], a[href="/login"]'),
-  );
+  ) || path === "/login" || path.startsWith("/i/flow/login");
   const bodyText = document.body?.innerText?.slice(0, 4_000) ?? "";
-  const challengeRequired = Boolean(
+  const explicitChallenge = Boolean(document.querySelector(
+    'iframe[src*="arkoselabs"], iframe[title*="challenge"], [data-testid*="arkose"], #arkoseFrame',
+  ));
+  const verificationPrompt = Boolean(
     document.querySelector('[data-testid="ocfEnterTextTextInput"], input[name="text"]'),
-  ) && /verify|verification|验证|确认身份/i.test(bodyText);
+  ) && /verify|verification|captcha|unusual activity|arkose|验证|確認身份|验证码|機器人/i.test(bodyText);
+  const challengeRequired = path.startsWith("/account/access")
+    || (path.startsWith("/i/flow/") && !path.startsWith("/i/flow/login"))
+    || explicitChallenge
+    || verificationPrompt;
 
   /** @param {Element | null | undefined} element */
   const parsePermalink = (element) => {
@@ -168,16 +176,10 @@ function extractTimeline(expectedAccount) {
   return { authRequired, challengeRequired, posts };
 }
 
-function inspectAuthentication() {
-  const bodyText = document.body?.innerText?.slice(0, 4_000) ?? "";
-  return {
-    authRequired: Boolean(
-      document.querySelector('input[autocomplete="username"], [data-testid="loginButton"], a[href="/login"]'),
-    ),
-    challengeRequired: Boolean(
-      document.querySelector('[data-testid="ocfEnterTextTextInput"], input[name="text"]'),
-    ) && /verify|verification|验证|确认身份/i.test(bodyText),
-  };
+/** @param {{authRequired: boolean, challengeRequired: boolean}} state */
+function assertAuthenticated(state) {
+  if (state.challengeRequired) throw new BrowserChallengeRequiredError();
+  if (state.authRequired) throw new BrowserLoginRequiredError();
 }
 
 /**
@@ -233,9 +235,8 @@ export class BrowserFeedSource {
       timeout: this.options.navigationTimeoutMs,
     });
     await this.page.waitForSelector("body", { timeout: this.options.navigationTimeoutMs });
-    const result = await this.page.evaluate(inspectAuthentication);
-    if (result.challengeRequired) throw new BrowserChallengeRequiredError();
-    if (result.authRequired) throw new BrowserLoginRequiredError();
+    const result = await this.page.evaluate(extractTimeline, "");
+    assertAuthenticated(result);
   }
 
   /** @param {string[]} accounts */
@@ -266,14 +267,19 @@ export class BrowserFeedSource {
         waitUntil: "domcontentloaded",
         timeout: this.options.navigationTimeoutMs,
       });
-      await page.waitForSelector(
-        'article[data-testid="tweet"], [data-testid="emptyState"], input[autocomplete="username"], [data-testid="loginButton"], [data-testid="ocfEnterTextTextInput"]',
-        { timeout: this.options.navigationTimeoutMs },
-      );
+      try {
+        await page.waitForSelector(
+          'article[data-testid="tweet"], [data-testid="emptyState"], input[autocomplete="username"], [data-testid="loginButton"], [data-testid="ocfEnterTextTextInput"], iframe[src*="arkoselabs"], #arkoseFrame',
+          { timeout: this.options.navigationTimeoutMs },
+        );
+      } catch (error) {
+        const state = await page.evaluate(extractTimeline, account).catch(() => null);
+        if (state) assertAuthenticated(state);
+        throw error;
+      }
       const result = await page.evaluate(extractTimeline, account);
       await observer.settle();
-      if (result.authRequired) throw new BrowserLoginRequiredError();
-      if (result.challengeRequired) throw new BrowserChallengeRequiredError();
+      assertAuthenticated(result);
       return result.posts
         .filter((post) => post && post.text && !post.isRepost)
         .filter((post) => this.options.includeReplies || !post.isReply)

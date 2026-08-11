@@ -162,4 +162,3 @@ npm run check
 ```
 
 浏览器控制基于 [Puppeteer](https://pptr.dev/)。架构思路参考了 [Tibo-monitor-Test](https://github.com/MizuIro-H/Tibo-monitor-Test)，但没有复制其未授权源码；本项目从头实现并采用 MIT License。
-

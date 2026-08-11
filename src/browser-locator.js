@@ -10,6 +10,17 @@ export class BrowserNotFoundError extends Error {
   }
 }
 
+/** @param {string} executablePath */
+function inferBrowserType(executablePath) {
+  const normalized = executablePath.toLowerCase();
+  if (normalized.includes("firefox")) return "firefox";
+  if (normalized.includes("msedge") || normalized.includes("microsoft edge")) return "edge";
+  if (normalized.includes("chrome") || normalized.includes("chromium")) return "chrome";
+  throw new BrowserNotFoundError(
+    "could not infer browser type from executablePath; set browser.type to chrome, edge, or firefox",
+  );
+}
+
 /**
  * @typedef {{type: string, executablePath: string | null}} BrowserPreference
  * @typedef {{platform?: string, environment?: NodeJS.ProcessEnv, homeDirectory?: string, exists?: (path: string) => boolean}} LocatorEnvironment
@@ -29,7 +40,10 @@ export function locateBrowser(preference, runtime = {}) {
     if (!exists(preference.executablePath)) {
       throw new BrowserNotFoundError(`browser executable does not exist: ${preference.executablePath}`);
     }
-    return { type: preference.type === "auto" ? "custom" : preference.type, executablePath: preference.executablePath };
+    return {
+      type: preference.type === "auto" ? inferBrowserType(preference.executablePath) : preference.type,
+      executablePath: preference.executablePath,
+    };
   }
 
   /** @type {{type: string, executablePath: string}[]} */

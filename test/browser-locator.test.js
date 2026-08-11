@@ -37,3 +37,14 @@ test("auto browser selection finds an installed Edge on Windows", () => {
 
   assert.deepEqual(located, { type: "edge", executablePath: edge });
 });
+
+test("auto browser type recognizes an explicitly configured Firefox executable", () => {
+  const executablePath = "/custom/Firefox.app/Contents/MacOS/firefox";
+
+  const located = locateBrowser(
+    { type: "auto", executablePath },
+    { exists: (candidate) => candidate === executablePath },
+  );
+
+  assert.deepEqual(located, { type: "firefox", executablePath });
+});
